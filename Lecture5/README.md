@@ -1,11 +1,8 @@
-# Format String Vulnerability 1
+# フォーマット文字列脆弱性 1
 
-Format string vulnerabilities silly bug that is due to the poor coding practice
-of the programmer. If a programmer passes an attacker-controlled buffer as an
-argument to a `printf` call (or any format string related function, e.g `sprintf,
-fprintf`), attacker can perform write to arbitrary memory address.
+フォーマット文字列脆弱性は、プログラマーの拙いコーディングが原因で生まれる、愚かなバグです。プログラマーが、攻撃者が制御できるバッファを `printf` の呼び出し(または `sprintf`、`fprintf` など、フォーマット文字列に関係する関数)の引数として渡すと、攻撃者は任意のメモリアドレスに書き込めます。
 
-To understand what I am talking about, take a look at the below example.
+何の話をしているのかを理解するために、次の例を見てください。
 
 ```C
 int main(int argc, char** argv) {
@@ -16,66 +13,49 @@ int main(int argc, char** argv) {
 }
 ```
 
-`printf` takes variable number of
-arguments and the `format specifier` identifies how many arguments it **should**
-access and what kind of data is stored onto that. To read how it takes variable
-number of argument refer
-[this](https://www.tutorialspoint.com/cprogramming/c_variable_arguments.htm).
-And to read more about `format specifiers` refer
-[this](http://www.cplusplus.com/reference/cstdio/printf/).
+`printf` は可変個の引数を取り、`format specifier`(書式指定子)が、いくつの引数に **アクセスすべきか** と、その引数にどんな種類のデータが入っているかを決めます。可変個の引数をどう受け取るかについては、
+[こちら](https://www.tutorialspoint.com/cprogramming/c_variable_arguments.htm)を参照してください。
+`format specifier` について詳しくは
+[こちら](http://www.cplusplus.com/reference/cstdio/printf/)を参照してください。
 
-In the above-mentioned program if you pass **sane** input like your name. e.g
-`./string0 Rohit`. You will get your name on the output.  But attacker do not
-always thinks of passing the sane output to the program.  Suppose you passed, lets
-say `%x` to the program, since attackers knows that first argument to the printf must
-be format specifier, if it is not supplied internally( that is through the
-program), a malformed format specifier may list that out the content on the
-stack.
+上のプログラムに、自分の名前のような **まともな** 入力を渡すと、たとえば
+`./string0 Rohit` なら、出力に自分の名前が表示されます。しかし攻撃者は、いつもまともな入力を渡そうとするとは限りません。たとえば `%x` を渡したとします。攻撃者は、printf の最初の引数はフォーマット指定子でなければならないと知っています。それが(プログラムの内部で)与えられていない場合、不正な形式のフォーマット指定子によって、スタックの内容が列挙されることがあります。
 
-:astonished: Attacker can see the content of STACK.
+:astonished: 攻撃者はスタックの内容を見られます。
 
-### See Stack's Content
-Lets see that in action. Try doing this:
+### スタックの内容を見る
+実際に試してみましょう。次のようにしてください。
 ```bash
 $ ./string0 "%p %p %p %p %p"
 0xffffd7c9 0x64 0xf0b5ff 0xffffd58e 0x1
 $
 ```
-Hey what just happened? Attacker's mind  :facepunch: you in the face.
-`%p` is used to print the content of the memory in hexadecimal and that just
-happened. Attacker fooled **printf** to print the content of memory by not giving
-sane input but `format specifier` as input. This is termed as format string
-vulnerability.
+何が起きたのでしょうか。攻撃者の発想が、あなたの顔に :facepunch: パンチを食らわせたのです。
+`%p` はメモリの内容を16進数で表示するために使われ、それがそのまま起きました。攻撃者は、まともな入力ではなく `format specifier` を入力として与えることで、**printf** をだまして、メモリの内容を表示させました。これをフォーマット文字列脆弱性と呼びます。
 
-### What else we can do?
-It This is not just limited to displaying the content in memory. This vulnerability
-allows the attacker to perform writes to arbitrary memory.
-To understand how the writes are actually happening, we need to understand the
-concept of `%n`. This format specifier allows the printf to write to memory
-location specified by one of its argument.
-e.g
+### ほかに何ができるか
+これはメモリの内容を表示するだけにとどまりません。この脆弱性によって、攻撃者は任意のメモリに書き込めます。
+書き込みが実際にどう行われるかを理解するには、`%n` の考え方を理解する必要があります。このフォーマット指定子により、printf は、引数の1つで指定されたメモリ位置に書き込みます。
+例
 ```C
 printf("rohit%n", &i);
-printf("%d", i);   //outputs to 5 == len(rohit)
+printf("%d", i);   //5 == len(rohit) が出力される
 ```
-In brief `%n` writes the number of characters printed so far get saved to `i`.
+簡単に言うと、`%n` は、ここまでに出力された文字数を `i` に保存します。
 
-Now we have two things in mind:
-* Copy our own format specifier in printf.
-* Write to some memory location onto stack(or some variable).
+ここで、次の2つを念頭に置いてください。
+* 自分で用意したフォーマット指定子を printf に渡す。
+* スタック上の(または何らかの変数の)メモリ位置に書き込む。
 
-### Towards actual exploit. :metal:
-Lets try to identify after how many 4 bytes memory locations, we are able to get
-back to the buffer. So inorder to do it. I will put say `AAAA` in the beginning
-of the exploit string. e.g
+### 実際の exploit に向けて :metal:
+4バイトのメモリ位置を何個たどると、バッファに戻ってこられるのかを調べましょう。そのために、exploit 文字列の先頭に、たとえば `AAAA` を入れます。例
 ``./string1 'AAAA %p %p %p %p %p %p %p %p %p %p %p %p'``
 Output
 `AAAA 0xffffd7af 0x64 0xf0b5ff 0xffffd57e 0x1 0xc2 0xffffd674 0xffffd57e
 0xffffd680 0x41414141 0x20702520 0x25207025`
-Notice, `0x41414141` third to last. This is nothing but the hex of ASCII('A').
-This means we reached the buffer after 9 %p and 10th one is buffer location.
-You may need to do several hit and trials in order to identify starting location
-of buffer and it might not be same as mine (10th location).
+`0x41414141` が最後から3番目にあることに注目してください。これは ASCII の 'A' の16進数にほかなりません。
+つまり、9個の %p のあとでバッファに到達していて、10番目がバッファの位置です。
+バッファの開始位置を特定するには、何度か試行錯誤が必要かもしれません。また、私の場合(10番目の位置)と同じとは限りません。
 
 ```C
 #include<stdio.h>
@@ -94,42 +74,31 @@ int main(int argc, char** argv)
     return 0;
 }
 ```
-Now I will demonstrate Change of control flow using the techniques we have just
-learned. Consider the above mentioned code. Find out the address of the buffer
-from the current stack location using format string vuln.
+では、いま学んだ技術を使って、制御の流れを変える方法を示します。上のコードを考えてください。フォーマット文字列の脆弱性を使って、現在のスタック位置からバッファのアドレスを調べます。
 `echo -e 'AAAA %p %p %p %p %p %p %p %p %p %p %p %p' | ./string1`
 Output:
 `AAAA 0x1 0xf7ffd918 0xf0b5ff 0xffffd59e 0x1 0xc2 0xffffd694 0xffffd59e
 0xffffd69c 0x41414141 0x20702520 0x25207025`.
-Hey its again the same the 10th location. :metal:
+またしても10番目の位置でした。:metal:
 
-Now consider,
+次に、これを考えます。
 `echo -e 'AAAA %p %p %p %p %p %p %p %p %p %n' | ./string1`
-This above command will write `len(AAAA %p %p %p %p %p %p %p %p %p ) --> 32` to
-to the memory pointed by the 10th argument. But the 10th argument is nothing but
-the `0x41414141` so it will try to write onto the memory address pointed by
-`0x41414141` the value 32. Since it could be **read-only** memory, so you might
-get the `Segmentation Fault`. What about putting some sensible address onto the
-buffer instead of `0x41414141`. If we do so, then %n will write to that memory
-pointed by that location.
-Why not getting the address of `myvar`. Since it is global, we can get the
-address of globals before the running the program.
-We will use ,
+上のコマンドは、`len(AAAA %p %p %p %p %p %p %p %p %p ) --> 32` を、10番目の引数が指すメモリに書き込みます。しかし10番目の引数は `0x41414141` にほかならないので、`0x41414141` が指すメモリアドレスに値32を書き込もうとします。そこは **読み取り専用** のメモリかもしれないので、`Segmentation Fault` になることがあります。`0x41414141` の代わりに、意味のあるアドレスをバッファに入れたらどうでしょうか。そうすれば、%n はそのアドレスが指すメモリに書き込みます。
+`myvar` のアドレスを取得してみましょう。これはグローバル変数なので、プログラムを実行する前にグローバル変数のアドレスを調べられます。
+次のコマンドを使います。
 `objdump -t ./string1 | grep myvar`
 `0804a028 g     O .bss    00000004              myvar`
-The first data column contains the address for the `myvar`.
+最初のデータ列に、`myvar` のアドレスが入っています。
 
 
-**Crafting the exploit** to change the variable content then change the control
-flow.
+変数の内容を書き換えて、制御の流れを変える **exploit を作ります**。
 `` echo -e `python -c "import struct; print struct.pack('<I',0x0804a028)"`"%p %p
 %p %p %p %p %p %p %p %n" | ./string1``
 Output:
 ``(0x1 0xf7ffd918 0xf0b5ff 0xffffd59e 0x1 0xc2 0xffffd694 0xffffd59e 0xffffd69c
 Cool you changed it .. :)``
 
-:cool: We have exploited the binary.
+:cool: バイナリを exploit できました。
 
-#### What we have learnt with this?
-Format string vulnerability allows to write to arbitrary location in programs
-memory.
+#### ここで学んだこと
+フォーマット文字列脆弱性によって、プログラムのメモリ内の任意の位置に書き込めます。

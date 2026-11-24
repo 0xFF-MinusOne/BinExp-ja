@@ -1,64 +1,66 @@
+> これは [rosehgal/BinExp](https://github.com/rosehgal/BinExp) の日本語訳です。原著のライセンス (MIT) に従います。著作権表示は LICENSE にあります。訳したのは説明文と、コード内のコメントです。
+
 # Binary Exploitation
-I have another interesting project @[DockerENT](https://github.com/r0hi7/DockerENT), @[Trashemail](https://github.com/r0hi7/Trashemail) take some time to review it as well.
+ほかにも面白いプロジェクトとして @[DockerENT](https://github.com/r0hi7/DockerENT) と @[Trashemail](https://github.com/r0hi7/Trashemail) があります。ぜひ見てみてください。
 
-#### Any Doubt...? [Let's Discuss](https://gitter.im/BinaryExploitation/Lobby?utm_source=share-link&utm_medium=link&utm_campaign=share-link)
-> ## Introduction
-> I am quite passionate about exploiting binary files. The first time when I came across Buffer Overflow(a simple technique of exploitation), then I was not able to implement the same with the same copy of code on my system.
-The reason for that was there was no consolidated document that would guide me thoroughly to write a perfect exploit payload for the program in case of system changes.
-> Also, there are very few descriptive blogs/tutorials that had helped me exploiting a given binary.
-> I have come up with the consolidation of Modern exploitation techniques (in the form of the tutorial) that will allow you to understand exploitation from scratch.
+#### 質問はありますか? [こちらで議論しましょう](https://gitter.im/BinaryExploitation/Lobby?utm_source=share-link&utm_medium=link&utm_campaign=share-link)
+> ## はじめに
+> 私はバイナリファイルの攻略(exploit)に強い情熱を持っています。初めてバッファオーバーフロー(単純な exploit 手法)に出会ったとき、同じコードを自分のシステムで動かしても、同じ結果を再現できませんでした。
+その原因は、システムが変わっても完全な exploit ペイロードを書けるように、最初から丁寧に導いてくれるまとまった資料がなかったことでした。
+> また、バイナリを実際に exploit する方法を詳しく解説したブログやチュートリアルも、ほとんどありませんでした。
+> そこで、現代的な exploit 手法を(チュートリアルの形で)まとめました。これを読めば、exploit を基礎から理解できます。
 
-I will be using [vagrant file](Vagrantfile) to set up the system on a virtual box. To do  the same in your system follow:
+仮想マシンの環境構築には [vagrant file](Vagrantfile) を使います。自分のシステムで同じことをするには、次のようにします。
 1. `vagrant up`
 2. `vagrant ssh`
 
-## Topics
+## トピック
 
 1. **[Lecture 1.](Lecture1/README.md)**
-     * Memory Layout of C program.
-     * ELF binaries.
-     * Overview of stack during function call.
-     * Assembly code for the function call and return.
-     * Concept of `$ebp` and `$esp`.
-     * Executable memory.
+     * C プログラムのメモリレイアウト。
+     * ELF バイナリ。
+     * 関数呼び出し時のスタックの概要。
+     * 関数の呼び出しと復帰のアセンブリコード。
+     * `$ebp` と `$esp` の考え方。
+     * 実行可能メモリ。
 
 1. **[Lecture 1.5.](Lecture1.5/README.md)**
-    * How Linux finds the binaries utilis?
-    * Simple exploit using Linux $PATH variable.
+    * Linux はどのようにしてコマンド(バイナリ)を探し出すのか?
+    * Linux の $PATH 変数を使った単純な exploit。
 
 1. **[Lecture 2.](Lecture2/README.md)**
-    * What are stack overflows?
-    * **ASLR** (basics), avoiding **Stack protection**.
-    * Shellcodes
-    * Buffer overflow:
-        *  Changing Control of the program to return to some other function
-        *  Shellcode injection in buffer and spawning the shell
+    * スタックオーバーフローとは?
+    * **ASLR** (基礎)と、**Stack protection** の回避。
+    * シェルコード
+    * バッファオーバーフロー:
+        *  プログラムの制御を変えて、別の関数に戻らせる
+        *  バッファにシェルコードを注入して、シェルを起動する
 
 1. **[Lecture 3.](Lecture3/README.md)**
-    * **Shellcode** injection with **ASLR** enabled.
-        * Environment variables.
+    * **ASLR** が有効な状態での **シェルコード** 注入。
+        * 環境変数。
 
 1. **[Lecture 3.5](Lecture3.5/README.md)**
-    * Return to Libc attacks.
-    * Spawning `shell` in **non executable stack**
-    * Stack organization in case `ret2libc` attack.
+    * Return to Libc 攻撃。
+    * **実行不可スタック** での `shell` の起動。
+    * `ret2libc` 攻撃時のスタックの構成。
 
 1. **[Lecture 4.](Lecture4/)**
-    * This folder contains the set of questions to exploit binaries on the concept that we have learned so far.
+    * このフォルダには、ここまでに学んだ考え方でバイナリを exploit する問題集が入っています。
 
 1. **[Lecture 5.](Lecture5/README.md)**
-    * What is format string Vulnerability?
-    * Seeing the content of stack.
-    * Writing onto the stack.
-    * Writing to arbitrary memory location.
+    * フォーマット文字列脆弱性とは?
+    * スタックの内容を見る。
+    * スタックへの書き込み。
+    * 任意のメモリ位置への書き込み。
 
 1. **[Lecture 6.](Lecture6/README.md)**
     * GOT
-    * Overriding GOT entry.
-    * Spawning shell with format string vuln.
+    * GOT エントリの上書き。
+    * フォーマット文字列脆弱性でシェルを起動する。
 
 1. **[Lecture 7.](Lecture7/README.md)**
-    * Heaps
-    * Arena, Bins, Chunks.
-    * Use after free exploit.
-    * Double free exploit.
+    * ヒープ
+    * Arena、Bin、チャンク。
+    * Use after free の exploit。
+    * Double free の exploit。

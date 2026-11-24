@@ -1,13 +1,12 @@
-# Exploiting Linux utils search.
-[Video Hindi](https://www.youtube.com/watch?v=VVFnA7yYFqE&t=42s)
+# Linux のコマンド検索を exploit する
+[動画 (ヒンディー語)](https://www.youtube.com/watch?v=VVFnA7yYFqE&t=42s)
 
-In Linux the file under the directory says `/bin/*` are nothing but binary
-executable that allows the user to do day to day tasks. All these binaries are
-not stored in one location only but many. To see the set of all the locations
-where the system binaries are present, you print your `$PATH` variable.
+Linux では、たとえば `/bin/*` のようなディレクトリにあるファイルは、ユーザーが日常の作業をするための
+実行可能バイナリにほかなりません。これらのバイナリは1か所だけでなく、複数の場所に置かれています。
+システムのバイナリがある場所をすべて見るには、`$PATH` 変数を表示します。
 `export $PATH`
 `/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`
-There is the list of locations we have.
+これが検索場所の一覧です。
 
 ```C
 #include <stdio.h>
@@ -19,38 +18,32 @@ int main()
     return 0;
 }
 ```
-Suppose you are asked that what this program does? You would answer that, it
-check if file exits or not, if exists, it will print the name again.
-We are interested to exploit this, but to exploit we need to understand the
-execution flow about how this program is working.
+このプログラムは何をするのかと聞かれたら、ファイルが存在するかどうかを調べ、存在すれば
+その名前をもう一度表示する、と答えるでしょう。
+私たちはこれを exploit したいのですが、そのためには、このプログラムがどう動くかという
+実行の流れを理解する必要があります。
 
 
-When this program is started, then it will call the `system()` system call to
-execute `ls /tmp/file.dat`. `System` is one of the Linux system calls that
-would execute the shell and in the same shell it would execute the command
-provided.
-Since `system("ls ..")` is executing `ls` Linux utility, it would be easy to
-guess that, it will start searching the shells `$PATH` variable and will start
-exploring the directories in the same variable. If it finds it in the first one
-will execute that `ls` if not keep it search for the next directory.
+このプログラムを起動すると、`system()` システムコールを呼んで `ls /tmp/file.dat` を実行します。
+`System` はシェルを起動し、そのシェルの中で渡されたコマンドを実行する Linux のシステムコールの1つです。
+`system("ls ..")` は Linux のユーティリティである `ls` を実行するので、シェルの `$PATH` 変数を見て、
+そこにあるディレクトリを順に探しにいくだろうと簡単に推測できます。最初のディレクトリで見つかれば
+その `ls` を実行し、見つからなければ次のディレクトリを探し続けます。
 
-### Can I change the `$PATH`?
-`$PATH` is a shells environment variable and it can be manipulated by the user of that
-shell.
-Suppose I create one binary file in the `$PWD`, make it name as `ls` and then
-tell the `$PATH` about the current `$PWD` as the first location to search for,
-then if the system start searching for `ls` it will end up with my `ls`. :cool:
-We have exploited this as well.
+### `$PATH` は変更できるのか?
+`$PATH` はシェルの環境変数で、そのシェルのユーザーが操作できます。
+`$PWD` に `ls` という名前のバイナリファイルを作り、現在の `$PWD` を最初に探す場所として
+`$PATH` に設定すると、システムが `ls` を探したときに、私の `ls` にたどり着きます。:cool:
+これで、この exploit も成立しました。
 
-### Crafting the actual exploit.
-1. Update the `$PATH` to point to current directory first.
+### 実際の exploit を作る
+1. `$PATH` を更新して、カレントディレクトリを先頭にします。
    `export PATH=$PWD:$PATH`
-2. Copy some binary say `cat` to as name of `ls` in current directory.
+2. たとえば `cat` のようなバイナリを、カレントディレクトリに `ls` という名前でコピーします。
    ``cp `which cat` ls``
-3. [Optional] to check if the path is updated.
-   `which ls` and you should get something like : `/home/vagrant` which is my
-   current directory.
-4. Run the binary. :metal:
+3. [任意] パスが更新されたかを確認します。
+   `which ls` を実行すると `/home/vagrant` のような結果が得られるはずです。これは私のカレントディレクトリです。
+4. バイナリを実行します。:metal:
 
-You will notice that binary instead of running the `ls` will run the `cat`.
+`ls` の代わりに `cat` が実行されることがわかります。
 :smile:
