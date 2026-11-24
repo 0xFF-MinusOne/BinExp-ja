@@ -1,4 +1,10 @@
-> これは [rosehgal/BinExp](https://github.com/rosehgal/BinExp) の日本語訳です。原著のライセンス (MIT) に従います。著作権表示は LICENSE にあります。訳したのは説明文と、コード内のコメントです。
+> **これは日本語訳です。**
+>
+> - 原著: [rosehgal/BinExp](https://github.com/rosehgal/BinExp)(原著者: rosehgal)
+> - ライセンス: MIT — 翻訳も同じライセンスです([ライセンス全文](LICENSE))。原文から翻訳(変更)しています
+> - 訳した範囲: 全レクチャーの説明文と、コード内の原著者のコメント
+> - 訳していないもの: なし
+> - 他の日本語訳: [一覧](https://github.com/orgs/0xFF-MinusOne/repositories?q=-ja)
 
 # Binary Exploitation
 ほかにも面白いプロジェクトとして @[DockerENT](https://github.com/r0hi7/DockerENT) と @[Trashemail](https://github.com/r0hi7/Trashemail) があります。ぜひ見てみてください。
